@@ -13,13 +13,6 @@ export interface ChannelMember {
     users: { email: string } | null;
 }
 
-const ICE_SERVERS = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-  ],
-};
-
 @Injectable({
   providedIn: 'root',
 })
@@ -184,15 +177,26 @@ export class VoiceChannelService {
         if(status === 'SUBSCRIBED') {
             const { data: members } = await supabase.from('channel_members').select('user_id').eq('channel_id', channelId);
             const otherUserIds = members?.map(m => m.user_id).filter(id => id !== userId) || [];
-            otherUserIds.forEach(id => this.createPeerConnection(id, true));
+            for (const id of otherUserIds) {
+              await this.createPeerConnection(id, true);
+            }
         }
     });
   }
 
-  private createPeerConnection(remoteUserId: string, isInitiator: boolean) {
+  private async createPeerConnection(remoteUserId: string, isInitiator: boolean) {
     if (!this.localStream || this.peerConnections.has(remoteUserId)) return;
     
-    const pc = new RTCPeerConnection(ICE_SERVERS);
+    // Fix: supabase.realtime.getIceServers() is deprecated in supabase-js v2.
+    // Using public STUN servers as a fallback. For production, a Supabase Edge
+    // Function should be used to securely vend TURN server credentials.
+    const pc = new RTCPeerConnection({
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+      ],
+    });
+    
     this.peerConnections.set(remoteUserId, pc);
 
     this.localStream.getTracks().forEach(track => pc.addTrack(track, this.localStream!));
@@ -228,7 +232,7 @@ export class VoiceChannelService {
   }
 
   private async handleOffer(from: string, sdp: RTCSessionDescriptionInit) {
-    this.createPeerConnection(from, false);
+    await this.createPeerConnection(from, false);
     const pc = this.peerConnections.get(from);
     if (!pc) return;
 
