@@ -1,0 +1,7 @@
+{
+  "name": "Supabase Voice Channels",
+  "description": "A real-time voice chat application to talk with friends in different channels, powered by Angular and Supabase.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
